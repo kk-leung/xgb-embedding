@@ -1,9 +1,9 @@
 import torch
 import torch.nn.functional as F
 
-class predictor(torch.nn.Module):
+class Predictor(torch.nn.Module):
     def __init__(self, num_trees, embedding_size, hidden_size=2):
-        super(predictor, self).__init__()
+        super(Predictor, self).__init__()
 
         self.linear1 = torch.nn.Parameter(torch.Tensor(1, num_trees, num_trees, embedding_size, hidden_size).normal_(0, 0.01))
         self.bias1 = torch.nn.Parameter(torch.Tensor(1, num_trees, num_trees, hidden_size).zero_())
@@ -36,11 +36,11 @@ class predictor(torch.nn.Module):
         return x
 
 
-class xgb_embedding(torch.nn.Module):
+class XGBEmbedding(torch.nn.Module):
     def __init__(self, num_trees, num_nodes, embedding_size, hidden_size=10):
-        super(xgb_embedding, self).__init__()
+        super(XGBEmbedding, self).__init__()
         self.emb = torch.nn.Embedding(num_nodes * num_trees, embedding_size)
-        self.predictors = predictor(num_trees, embedding_size, hidden_size)
+        self.predictors = Predictor(num_trees, embedding_size, hidden_size)
         self.linear = torch.nn.Parameter(torch.Tensor(1, num_trees, embedding_size, num_nodes).normal_(0, 0.01))
         self.bias = torch.nn.Parameter(torch.Tensor(1, num_trees, num_nodes).zero_())
         self.num_trees = num_trees
@@ -72,4 +72,6 @@ class xgb_embedding(torch.nn.Module):
     def inference(self, x):
         # x: (bs, n)
         return self.emb(self.shift_index(x))  # (bs, n, e)
+
+
 

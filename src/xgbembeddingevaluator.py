@@ -2,25 +2,23 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from xgb_dump_parser import decision_tree
 
-
-class xgb_emb_eval:
-    def __init__(self, test, model, trees):
-        self.test = test
+class XGBEmbeddingEvaluator:
+    def __init__(self, model, trees):
         self.weight = model.get_weights()
         self.trees = trees
-        self.inference_result = self.inference(test, model)
         self.dot = self.dot_product()
         self.dot_norm = self.dot_product(normalize=True)
+        self.eval()
 
-    def inference(self, test, model):
+    @staticmethod
+    def inference_model(test, model):
         model.cuda()
         model.eval()
         results = []
         for batch, x in enumerate(test):
-            x = x.cuda()
-            results.append(model.inference(x))
+            x[0] = x[0].cuda()
+            results.append(model.inference(x[0]))
         return torch.cat(results, dim=0).detach().cpu().numpy()
 
     def dot_product(self, normalize=False):
@@ -33,8 +31,6 @@ class xgb_emb_eval:
         return torch.matmul(result, result.permute(0, 2, 1)).detach().cpu().numpy()
 
     def eval(self):
-        # dot = self.dot.reshape(len(self.trees), -1)
-        # dot_norm = self.dot.reshape(len(self.trees), -1)
         cover = []
         value = []
         cover_norm = []

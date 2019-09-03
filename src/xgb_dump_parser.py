@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 
-class decision_tree:
+class DecisionTree:
     def __init__(self, model_dump, feature_count, feature_names=None):
         self.feature_count = feature_count
         self.decision_nodes = {}
@@ -27,9 +27,9 @@ class decision_tree:
             node_id = int(line_split[0].replace("\t", ""))
 
             if "leaf" in line:
-                self.leaf_nodes[node_id] = leaf_node(node_id, line)
+                self.leaf_nodes[node_id] = LeafNode(node_id, line)
             else:
-                node = decision_node(node_id, line, self.feature_count, self.feature_names)
+                node = DecisionNode(node_id, line, self.feature_count, self.feature_names)
                 self.decision_nodes[node_id] = node
                 self.parent_nodes[node.no_node_id] = node_id
                 self.parent_nodes[node.yes_node_id] = node_id
@@ -101,7 +101,7 @@ class decision_tree:
                 self.self_value[left, right] = abs(left_node.leaf_value - right_node.leaf_value)
 
 
-class decision_node:
+class DecisionNode:
     def __init__(self, node_id, line, feature_count, feature_names):
         open_bracket = line.index("[")
         close_bracket = line.index("]")
@@ -133,7 +133,7 @@ class decision_node:
         self.feature_name = feature_name
 
 
-class leaf_node:
+class LeafNode:
     def __init__(self, node_id, line):
         attributes = line.split(":")[1].split(",")
         self.leaf_value = float(attributes[0].split("=")[1])
