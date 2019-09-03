@@ -1,9 +1,11 @@
 import numpy as np
 import torch
 from torch import optim
-from src.xgbtrainer import timer
+
 from src.embedding_net import XGBEmbedding
 from src.xgbembeddingevaluator import XGBEmbeddingEvaluator
+from src.xgbtrainer import timer
+
 
 class XGBEmbeddingTrainer:
     def __init__(self, args, max_length):
@@ -11,7 +13,6 @@ class XGBEmbeddingTrainer:
         self.model = XGBEmbedding(args.num_round, max_length, args.embedding_size)
         total_params = sum(x.data.nelement() for x in self.model.parameters())
         print("Model total number of parameters: {}".format(total_params))
-
 
     def trainIters(self, train, valid):
         tim = timer()
@@ -26,12 +27,12 @@ class XGBEmbeddingTrainer:
             train_losses = self.train_model(opt, train)
 
             valid_losses = self.valid_model(valid)
-            tim.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}".format(epoch, np.mean(train_losses), np.mean(valid_losses)))
+            tim.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}".format(epoch, np.mean(train_losses),
+                                                                                       np.mean(valid_losses)))
 
             checkpoint = {'model': self.model, 'args': self.args}
             model_name = self.args.model_name + '.chkpt'
             torch.save(checkpoint, model_name)
-
 
     def valid_model(self, valid):
         valid_losses = []
@@ -42,7 +43,6 @@ class XGBEmbeddingTrainer:
             valid_losses.append(loss.item())
             # x = x.cpu()
         return valid_losses
-
 
     def train_model(self, opt, train):
         train_losses = []
@@ -55,7 +55,6 @@ class XGBEmbeddingTrainer:
             # x = x.cpu()
             train_losses.append(loss.item())
         return train_losses
-
 
     def inference(self, test):
         self.model.cuda()

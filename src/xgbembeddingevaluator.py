@@ -1,6 +1,6 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 
 
 class XGBEmbeddingEvaluator:
@@ -61,15 +61,3 @@ class XGBEmbeddingEvaluator:
         print(np.mean(cover_norm))
         print(np.mean(value))
         print(np.mean(value_norm))
-
-
-
-
-
-
-
-
-
-
-
-

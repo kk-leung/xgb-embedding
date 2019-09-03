@@ -1,16 +1,18 @@
+from time import time
+
+import numpy as np
+import torch
 import xgboost as xgb
 from torch.utils.data import DataLoader, Dataset
-import torch
 
 from src.splitter import Splitter
 from src.xgb_dump_parser import DecisionTree
-import numpy as np
-from time import time
+
 
 class XGBTrainer:
     def __init__(self, splitter: Splitter, args):
 
-        #Load and split
+        # Load and split
         self.timer = timer()
         Xtrain, ytrain = splitter.train
         Xvalid, yvalid = splitter.valid
@@ -34,7 +36,7 @@ class XGBTrainer:
         watchlist = [(dtrain, 'train'), (dvalid, 'valid')]
         self.timer.toc("load and split done")
 
-        #train
+        # train
 
         if args.load is False:
             booster = xgb.train(param, dtrain, args.num_round)
@@ -75,7 +77,7 @@ class XGBTrainer:
             return self.leaf_to_index[leaf_index][leaf]
 
         a = np.vectorize(func)
-        indexes = np.arange(0, self.num_trees).reshape(1, -1)#.repeat(len(pred_leaves), 0)
+        indexes = np.arange(0, self.num_trees).reshape(1, -1)  # .repeat(len(pred_leaves), 0)
         return a(indexes, pred_leaves)
 
     def get_loaders(self):
@@ -92,7 +94,7 @@ class XGBLeafDataset(Dataset):
         return self.leaves.shape[0]
 
     def __getitem__(self, index):
-        return torch.LongTensor(self.leaves[index, :]), torch.LongTensor(self.y[index:index+1])
+        return torch.LongTensor(self.leaves[index, :]), torch.LongTensor(self.y[index:index + 1])
 
 
 class timer:

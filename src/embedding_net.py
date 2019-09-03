@@ -1,23 +1,26 @@
 import torch
 import torch.nn.functional as F
 
+
 class Predictor(torch.nn.Module):
     def __init__(self, num_trees, embedding_size, hidden_size=2):
         super(Predictor, self).__init__()
 
-        self.linear1 = torch.nn.Parameter(torch.Tensor(1, num_trees, num_trees, embedding_size, hidden_size).normal_(0, 0.01))
+        self.linear1 = torch.nn.Parameter(
+            torch.Tensor(1, num_trees, num_trees, embedding_size, hidden_size).normal_(0, 0.01))
         self.bias1 = torch.nn.Parameter(torch.Tensor(1, num_trees, num_trees, hidden_size).zero_())
         self.dropout = torch.nn.Dropout(p=0.5)
-        self.linear2 = torch.nn.Parameter(torch.Tensor(1, num_trees, (num_trees - 1) * hidden_size, embedding_size).normal_(0, 0.01))
+        self.linear2 = torch.nn.Parameter(
+            torch.Tensor(1, num_trees, (num_trees - 1) * hidden_size, embedding_size).normal_(0, 0.01))
         self.bias2 = torch.nn.Parameter(torch.Tensor(1, num_trees, embedding_size).zero_())
         self.hidden_size = hidden_size
         self.num_trees = num_trees
 
-        self.mask = torch.nn.Parameter(~torch\
-            .eye(num_trees)\
-            .bool()\
-            .unsqueeze(0)\
-            .unsqueeze(-1), requires_grad=False)
+        self.mask = torch.nn.Parameter(~torch \
+                                       .eye(num_trees) \
+                                       .bool() \
+                                       .unsqueeze(0) \
+                                       .unsqueeze(-1), requires_grad=False)
 
     def forward(self, x):
         # x: (bs, 1, n, e)
@@ -27,7 +30,7 @@ class Predictor(torch.nn.Module):
         x = F.relu(x)
         x = self.dropout(x)
         m = self.mask.expand([x.shape[0], self.num_trees, self.num_trees, self.hidden_size])
-        #slice to (bs, n, n-1, h) and reshape (bs, n, (n-1)*h, 1)
+        # slice to (bs, n, n-1, h) and reshape (bs, n, (n-1)*h, 1)
         x = x.masked_select(m).view(x.shape[0], self.num_trees, (self.num_trees - 1) * self.hidden_size, 1)
         # (bs, n, (n-1)h, 1)
         x = torch.sum(x * self.linear2, dim=2)
@@ -72,6 +75,3 @@ class XGBEmbedding(torch.nn.Module):
     def inference(self, x):
         # x: (bs, n)
         return self.emb(self.shift_index(x))  # (bs, n, e)
-
-
-
