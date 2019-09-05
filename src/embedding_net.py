@@ -43,9 +43,10 @@ class XGBEmbedding(torch.nn.Module):
     def __init__(self, num_trees, num_nodes, embedding_size, hidden_size=10):
         super(XGBEmbedding, self).__init__()
         self.emb = torch.nn.Embedding(num_nodes * num_trees, embedding_size)
+        self.train_emb = torch.nn.Embedding(num_nodes * num_trees, embedding_size)
         self.predictors = Predictor(num_trees, embedding_size, hidden_size)
         self.linear = torch.nn.Parameter(torch.Tensor(1, num_trees, embedding_size, num_nodes).normal_(0, 0.01))
-        self.bias = torch.nn.Parameter(torch.Tensor(1, num_trees, num_nodes).zero_())
+        # self.bias = torch.nn.Parameter(torch.Tensor(1, num_trees, num_nodes).zero_())
         self.num_trees = num_trees
         self.num_nodes = num_nodes
         self.arange = torch.nn.Parameter(torch.arange(self.num_trees), requires_grad=False)
@@ -56,10 +57,10 @@ class XGBEmbedding(torch.nn.Module):
 
     def forward(self, x):
         batch_emb = self.emb(self.shift_index(x))  # (bs, n, e)
-        x_expanded = self.prepare(batch_emb)
-        net = self.predictors(x_expanded)
+        x_expanded = self.prepare(batch_emb) # (bs, 1, n, e)
+        net = self.predictors(x_expanded) # (bs, n, e)
         net = torch.sum(net.unsqueeze(3) * self.linear, dim=2)
-        net = net + self.bias
+        # net = net + self.bias
         net = net.view(-1, net.shape[-1])
         loss = F.cross_entropy(net, x.view(-1), reduction="none")
         return loss.view(x.shape[0], self.num_trees)

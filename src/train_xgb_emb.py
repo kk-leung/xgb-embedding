@@ -18,7 +18,7 @@ class XGBEmbeddingTrainer:
         tim = timer()
 
         # ADAM opts
-        opt = optim.Adam(self.model.parameters(), lr=self.args.lr)
+        opt = optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
 
         ################ Training epoch
         self.model.cuda()
@@ -73,7 +73,7 @@ class XGBEmbeddingTrainer:
             self.valid_model(valid)
 
     def get_embedding(self, loaders, trees):
-        XGBEmbeddingEvaluator(self.model, trees)
+        XGBEmbeddingEvaluator(self.model, trees, print_eval=self.args.print_eval)
         emb = []
         for loader in loaders:
             emb.append(XGBEmbeddingEvaluator.inference_model(loader, self.model))

@@ -4,12 +4,13 @@ import torch.nn.functional as F
 
 
 class XGBEmbeddingEvaluator:
-    def __init__(self, model, trees):
+    def __init__(self, model, trees, print_eval=True):
         self.weight = model.get_weights()
         self.trees = trees
         self.dot = self.dot_product()
         self.dot_norm = self.dot_product(normalize=True)
-        self.eval()
+        if print_eval:
+            self.eval()
 
     @staticmethod
     def inference_model(test, model):
@@ -44,20 +45,21 @@ class XGBEmbeddingEvaluator:
             cover_corr_norm = np.corrcoef(tree.self_cover[iu], self.dot_norm[i, :num_nodes, :num_nodes][iu])[0, 1]
             value_corr_norm = np.corrcoef(tree.self_value[iu], self.dot_norm[i, :num_nodes, :num_nodes][iu])[0, 1]
             if i < 20:
-                print(i, cover_corr)
-                print(i, cover_corr_norm)
-                print(i, value_corr)
-                print(i, value_corr_norm)
+                # print(i, cover_corr)
+                # print(i, cover_corr_norm)
+                # print(i, value_corr)
+                # print(i, value_corr_norm)
+                pass
             cover.append(cover_corr)
             cover_norm.append(cover_corr_norm)
             value.append(value_corr)
             value_norm.append(value_corr_norm)
-        print(cover)
-        print(cover_norm)
-        print(value)
-        print(value_norm)
+        # print(cover)
+        # print(cover_norm)
+        # print(value)
+        # print(value_norm)
         print("")
         print(np.mean(cover))
         print(np.mean(cover_norm))
-        print(np.mean(value))
-        print(np.mean(value_norm))
+        # print(np.mean(value))
+        # print(np.mean(value_norm))

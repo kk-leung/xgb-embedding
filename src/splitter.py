@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 
 class Splitter:
@@ -10,6 +11,11 @@ class Splitter:
                                                           test_size=0.4)
         Xvalid, Xtest, yvalid, ytest = train_test_split(Xvalid, yvalid, random_state=args.random_state, train_size=0.5,
                                                         test_size=0.5)
-        self.train = Xtrain, ytrain
-        self.valid = Xvalid, yvalid
-        self.test = Xtest, ytest
+        self.scaler = StandardScaler()
+        Xtrain = self.scaler.fit_transform(Xtrain)
+        Xvalid = self.scaler.transform(Xvalid)
+        Xtest = self.scaler.transform(Xtest)
+        self.train = Xtrain, ytrain.values
+        self.valid = Xvalid, yvalid.values
+        self.test = Xtest, ytest.values
+        self.num_input = Xtrain.shape[1]
