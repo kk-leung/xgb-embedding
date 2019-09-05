@@ -65,9 +65,9 @@ class XGBTrainer:
         self.timer.toc("train done. Max length = " + str(self.max_length))
 
         # predict leaf
-        train_pred = booster.predict(dtrain, pred_leaf=True)
-        valid_pred = booster.predict(dvalid, pred_leaf=True)
-        test_pred = booster.predict(dtest, pred_leaf=True)
+        train_pred = booster.predict(dtrain, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        valid_pred = booster.predict(dvalid, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        test_pred = booster.predict(dtest, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
         self.timer.toc("predict done")
         booster = None
 
