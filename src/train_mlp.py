@@ -16,10 +16,10 @@ class MLPTrainer:
         if mode is 'raw_only':
             num_features = num_input
         elif mode is 'emb_only':
-            num_features = args.embedding_size * args.num_round
+            num_features = args.embedding_size * args.num_trees_for_embedding
             # num_features = args.embedding_size
         elif mode is 'both':
-            num_features = args.embedding_size * args.num_round + num_input
+            num_features = args.embedding_size * args.num_trees_for_embedding + num_input
             # num_features = args.embedding_size + num_input
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")
@@ -43,7 +43,7 @@ class MLPTrainer:
             train_losses = self.train_model(opt, train)
 
             valid_losses, results, ground_truths = self.valid_model(valid)
-            valid_auc = self.evaluate(results, ground_truths)
+            valid_auc = self.evaluate(results, ground_truths, print_result=False)
 
             tim.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}   valid auc: {:10.6f}".format(epoch, np.mean(train_losses),
                                                                                        np.mean(valid_losses), valid_auc))
@@ -102,7 +102,7 @@ class MLPTrainer:
         if self.mode is 'both':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
             emb = emb / norm
-            emb = emb.reshape(-1, self.args.embedding_size * self.args.num_round)
+            emb = emb.reshape(-1, self.args.embedding_size * self.args.num_trees_for_embedding)
             # emb = np.mean(emb, axis=1)
             X = np.concatenate([X, emb], axis=1)
         elif self.mode is 'raw_only':
@@ -110,7 +110,7 @@ class MLPTrainer:
         elif self.mode is 'emb_only':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
             emb = emb / norm
-            X = emb.reshape(-1, self.args.embedding_size * self.args.num_round)
+            X = emb.reshape(-1, self.args.embedding_size * self.args.num_trees_for_embedding)
             # X = np.mean(emb, axis=1)
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")

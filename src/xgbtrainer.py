@@ -58,11 +58,11 @@ class XGBTrainer:
             booster.set_param(param)
         print(booster.eval_set(watchlist))
         dump = booster.get_dump(with_stats=True)
-        self.trees = [DecisionTree(tree, Xtrain.shape[1]) for tree in dump]
+        self.trees = [DecisionTree(tree, Xtrain.shape[1]) for tree in dump[:args.num_trees_for_embedding]]
         self.leaf_to_index = [tree.leaf_to_index for tree in self.trees]
         self.max_length = max([len(leaf_to_index) for leaf_to_index in self.leaf_to_index])
-        self.num_trees = args.num_round
-        self.timer.toc("train done")
+        self.num_trees = len(self.trees)
+        self.timer.toc("train done. Max length = " + str(self.max_length))
 
         # predict leaf
         train_pred = booster.predict(dtrain, pred_leaf=True)

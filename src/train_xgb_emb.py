@@ -10,7 +10,7 @@ from src.xgbtrainer import timer
 class XGBEmbeddingTrainer:
     def __init__(self, args, max_length):
         self.args = args
-        self.model = XGBEmbedding(args.num_round, max_length, args.embedding_size)
+        self.model = XGBEmbedding(args.num_trees_for_embedding, max_length, args.embedding_size)
         total_params = sum(x.data.nelement() for x in self.model.parameters())
         print("Model total number of parameters: {}".format(total_params))
 
@@ -31,7 +31,7 @@ class XGBEmbeddingTrainer:
                                                                                        np.mean(valid_losses)))
 
             checkpoint = {'model': self.model, 'args': self.args}
-            model_name = self.args.model_name + '.chkpt'
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth, self.args.num_trees_for_embedding)
             torch.save(checkpoint, model_name)
 
     def valid_model(self, valid):
@@ -69,7 +69,8 @@ class XGBEmbeddingTrainer:
         if self.args.load is False:
             self.trainIters(train, valid)
         else:
-            self.model = torch.load(self.args.model_name + '.chkpt')['model']
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth, self.args.num_trees_for_embedding)
+            self.model = torch.load(model_name)['model']
             self.valid_model(valid)
 
     def get_embedding(self, loaders, trees):
