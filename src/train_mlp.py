@@ -4,14 +4,16 @@ from sklearn.metrics import roc_auc_score
 from torch import optim
 from torch.utils.data import Dataset, DataLoader
 
+from src.Timer import Timer
 from src.mlp_net import MLP
 from src.splitter import Splitter
-from src.xgbtrainer import timer
+
 
 
 class MLPTrainer:
-    def __init__(self, args, num_input, mode='both'):
+    def __init__(self, args, num_input, mode='both', timer: Timer = None):
         self.args = args
+        self.timer = Timer() if timer is None else timer
 
         if mode is 'raw_only':
             num_features = num_input
@@ -31,7 +33,6 @@ class MLPTrainer:
         print("Model total number of parameters: {}".format(total_params))
 
     def trainIters(self, train, valid):
-        tim = timer()
 
         # ADAM opts
         opt = optim.Adam(self.model.parameters(), lr=self.args.mlp_lr, weight_decay=self.args.mlp_weight_decay)
@@ -45,7 +46,7 @@ class MLPTrainer:
             valid_losses, results, ground_truths = self.valid_model(valid)
             valid_auc = self.evaluate(results, ground_truths, print_result=False)
 
-            tim.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}   valid auc: {:10.6f}".format(epoch, np.mean(train_losses),
+            self.timer.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}   valid auc: {:10.6f}".format(epoch, np.mean(train_losses),
                                                                                        np.mean(valid_losses), valid_auc))
 
 

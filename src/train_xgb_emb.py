@@ -2,20 +2,19 @@ import numpy as np
 import torch
 from torch import optim
 
+from src.Timer import Timer
 from src.embedding_net import XGBEmbedding
 from src.xgbembeddingevaluator import XGBEmbeddingEvaluator
-from src.xgbtrainer import timer
-
 
 class XGBEmbeddingTrainer:
-    def __init__(self, args, max_length):
+    def __init__(self, args, max_length, timer: Timer = None):
+        self.timer = Timer() if timer is None else timer
         self.args = args
-        self.model = XGBEmbedding(args.num_trees_for_embedding, max_length, args.embedding_size)
+        self.model: XGBEmbedding = XGBEmbedding(args.num_trees_for_embedding, max_length, args.embedding_size)
         total_params = sum(x.data.nelement() for x in self.model.parameters())
         print("Model total number of parameters: {}".format(total_params))
 
     def trainIters(self, train, valid):
-        tim = timer()
 
         # ADAM opts
         opt = optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
@@ -27,7 +26,7 @@ class XGBEmbeddingTrainer:
             train_losses = self.train_model(opt, train)
 
             valid_losses = self.valid_model(valid)
-            tim.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}".format(epoch, np.mean(train_losses),
+            self.timer.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}".format(epoch, np.mean(train_losses),
                                                                                        np.mean(valid_losses)))
 
             checkpoint = {'model': self.model, 'args': self.args}
@@ -69,13 +68,14 @@ class XGBEmbeddingTrainer:
         if self.args.load is False:
             self.trainIters(train, valid)
         else:
-            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth, self.args.num_trees_for_embedding)
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth,
+                                                       self.args.num_trees_for_embedding)
             self.model = torch.load(model_name)['model']
             self.valid_model(valid)
 
     def get_embedding(self, loaders, trees):
-        XGBEmbeddingEvaluator(self.model, trees, print_eval=self.args.print_eval)
+        XGBEmbeddingEvaluator(self.model.get_weights(), trees, print_eval=self.args.print_eval)
         emb = []
         for loader in loaders:
-            emb.append(XGBEmbeddingEvaluator.inference_model(loader, self.model))
+            emb.append(self.inference(loader))
         return emb

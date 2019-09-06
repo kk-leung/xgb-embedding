@@ -4,23 +4,13 @@ import torch.nn.functional as F
 
 
 class XGBEmbeddingEvaluator:
-    def __init__(self, model, trees, print_eval=True):
-        self.weight = model.get_weights()
+    def __init__(self, embedding, trees, print_eval=True):
+        self.weight = torch.Tensor(embedding)
         self.trees = trees
         self.dot = self.dot_product()
         self.dot_norm = self.dot_product(normalize=True)
         if print_eval:
             self.eval()
-
-    @staticmethod
-    def inference_model(test, model):
-        model.cuda()
-        model.eval()
-        results = []
-        for batch, x in enumerate(test):
-            x[0] = x[0].cuda()
-            results.append(model.inference(x[0]))
-        return torch.cat(results, dim=0).detach().cpu().numpy()
 
     def dot_product(self, normalize=False):
         if normalize:

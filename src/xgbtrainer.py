@@ -5,30 +5,32 @@ import torch
 import xgboost as xgb
 from torch.utils.data import DataLoader, Dataset
 
+from src.Timer import Timer
 from src.splitter import Splitter
 from src.xgb_dump_parser import DecisionTree
 
 
 class XGBTrainer:
-    def __init__(self, splitter: Splitter, args):
+    def __init__(self, splitter: Splitter, args, timer: Timer = None):
 
         # Load and split
-        self.timer = timer()
-        Xtrain, ytrain = splitter.train
-        Xvalid, yvalid = splitter.valid
-        Xtest, ytest = splitter.test
+        self.timer = Timer() if timer is None else timer
+        self.args = args
+        Xtrain, self.ytrain = splitter.train
+        Xvalid, self.yvalid = splitter.valid
+        Xtest, self.ytest = splitter.test
 
-        zero_count = (ytrain == 0).sum()
-        one_count = len(ytrain) - zero_count
+        zero_count = (self.ytrain == 0).sum()
+        one_count = len(self.ytrain) - zero_count
         print("zero_count:", zero_count, "one_count", one_count)
         self.weight = [1 / np.sqrt(zero_count), 1 / np.sqrt(one_count)]
         print("weights", self.weight)
 
         scale_pos_weight = np.sqrt(zero_count / one_count)
 
-        dtrain = xgb.DMatrix(Xtrain, ytrain)
-        dvalid = xgb.DMatrix(Xvalid, yvalid)
-        dtest = xgb.DMatrix(Xtest, ytest)
+        dtrain = xgb.DMatrix(Xtrain, self.ytrain)
+        dvalid = xgb.DMatrix(Xvalid, self.yvalid)
+        dtest = xgb.DMatrix(Xtest, self.ytest)
         param = {
             'objective': 'binary:logistic',
             'eta': args.eta,
@@ -60,7 +62,8 @@ class XGBTrainer:
         dump = booster.get_dump(with_stats=True)
         self.trees = [DecisionTree(tree, Xtrain.shape[1]) for tree in dump[:args.num_trees_for_embedding]]
         self.leaf_to_index = [tree.leaf_to_index for tree in self.trees]
-        self.max_length = max([len(leaf_to_index) for leaf_to_index in self.leaf_to_index])
+        self.num_nodes = [len(leaf_to_index) for leaf_to_index in self.leaf_to_index]
+        self.max_length = max(self.num_nodes)
         self.num_trees = len(self.trees)
         self.timer.toc("train done. Max length = " + str(self.max_length))
 
@@ -71,22 +74,10 @@ class XGBTrainer:
         self.timer.toc("predict done")
         booster = None
 
-        train_leaf = self.parse_predict_leaf(train_pred)
-        valid_leaf = self.parse_predict_leaf(valid_pred)
-        test_leaf = self.parse_predict_leaf(test_pred)
+        self.train_leaf = self.parse_predict_leaf(train_pred)
+        self.valid_leaf = self.parse_predict_leaf(valid_pred)
+        self.test_leaf = self.parse_predict_leaf(test_pred)
         self.timer.toc("index done")
-
-        train_dataset = XGBLeafDataset(train_leaf, ytrain)
-        valid_dataset = XGBLeafDataset(valid_leaf, yvalid)
-        test_dataset = XGBLeafDataset(test_leaf, ytest)
-
-
-        sampler = torch.utils.data.WeightedRandomSampler(self.weight, len(train_dataset))
-
-        # self.train_loader = DataLoader(train_dataset, batch_size=args.batch_size, sampler=sampler)
-        self.train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        self.valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
-        self.test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
 
     def parse_predict_leaf(self, pred_leaves):
         def func(leaf_index, leaf):
@@ -97,7 +88,26 @@ class XGBTrainer:
         return a(indexes, pred_leaves)
 
     def get_loaders(self):
-        return self.train_loader, self.valid_loader, self.test_loader
+        train_dataset = XGBLeafDataset(self.train_leaf, self.ytrain)
+        valid_dataset = XGBLeafDataset(self.valid_leaf, self.yvalid)
+        test_dataset = XGBLeafDataset(self.test_leaf, self.ytest)
+
+        # sampler = torch.utils.data.WeightedRandomSampler(self.weight, len(train_dataset))
+        # train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, sampler=sampler)
+        train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True)
+        valid_loader = DataLoader(valid_dataset, batch_size=self.args.batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
+        return train_loader, valid_loader, test_loader
+
+    def _get_one_hot_version(self, leaves):
+        transpose = np.transpose(leaves)
+        return np.concatenate([np.eye(self.num_nodes[i])[tree] for i, tree in enumerate(transpose)], axis=1)
+
+    def get_one_hot_version(self):
+        train_one_hot = self._get_one_hot_version(self.train_leaf)
+        valid_one_hot = self._get_one_hot_version(self.valid_leaf)
+        test_one_hot = self._get_one_hot_version(self.test_leaf)
+        return train_one_hot, valid_one_hot, test_one_hot
 
 
 class XGBLeafDataset(Dataset):
@@ -111,16 +121,3 @@ class XGBLeafDataset(Dataset):
 
     def __getitem__(self, index):
         return torch.LongTensor(self.leaves[index, :]), torch.LongTensor(self.y[index:index + 1])
-
-
-class timer:
-    def __init__(self):
-        self.cur = time()
-
-    def tic(self):
-        self.cur = time()
-
-    def toc(self, msg, reset=False):
-        print("[{:7.2f}] {}".format(time() - self.cur, msg))
-        if reset:
-            self.cur = time()
