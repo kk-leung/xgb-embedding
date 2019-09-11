@@ -51,8 +51,12 @@ class XGBTrainer:
         # train
 
         if args.load is False:
-            # booster = xgb.train(param, dtrain, evals=watchlist, num_boost_round=args.num_round)
-            booster = xgb.train(param, dtrain, num_boost_round=args.num_round)
+            if args.xgb_silent:
+                booster = xgb.train(param, dtrain, num_boost_round=args.num_round)
+            else:
+                booster = xgb.train(param, dtrain, evals=watchlist, num_boost_round=args.num_round)
+
+
             booster.save_model(args.booster_file)
         else:
             booster = xgb.Booster()
@@ -108,6 +112,9 @@ class XGBTrainer:
         valid_one_hot = self._get_one_hot_version(self.valid_leaf)
         test_one_hot = self._get_one_hot_version(self.test_leaf)
         return train_one_hot, valid_one_hot, test_one_hot
+
+    def get_leaf_version(self):
+        return self.train_leaf, self.valid_leaf, self.test_leaf
 
 
 class XGBLeafDataset(Dataset):

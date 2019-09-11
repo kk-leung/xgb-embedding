@@ -4,6 +4,7 @@ from sklearn.metrics import roc_auc_score
 from torch import optim
 from torch.utils.data import Dataset, DataLoader
 
+from src.earlystopper import EarlyStopper
 from src.Timer import Timer
 from src.mlp_net import MLP
 from src.splitter import Splitter
@@ -15,13 +16,17 @@ class MLPTrainer:
         self.args = args
         self.timer = Timer() if timer is None else timer
 
+        if args.all_trees and False:
+            self.embedding_size_to_mlp = args.embedding_size # * args.num_trees_for_embedd
+        else:
+            self.embedding_size_to_mlp = args.embedding_size * args.num_trees_for_embedding
         if mode is 'raw_only':
             num_features = num_input
         elif mode is 'emb_only':
-            num_features = args.embedding_size * args.num_trees_for_embedding
+            num_features = self.embedding_size_to_mlp
             # num_features = args.embedding_size
         elif mode is 'both':
-            num_features = args.embedding_size * args.num_trees_for_embedding + num_input
+            num_features = self.embedding_size_to_mlp + num_input
             # num_features = args.embedding_size + num_input
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")
@@ -33,6 +38,9 @@ class MLPTrainer:
         print("Model total number of parameters: {}".format(total_params))
 
     def trainIters(self, train, valid):
+
+        early_stopper = EarlyStopper(3, 'moving', reverse=True)
+        max_auc = 0
 
         # ADAM opts
         opt = optim.Adam(self.model.parameters(), lr=self.args.mlp_lr, weight_decay=self.args.mlp_weight_decay)
@@ -49,6 +57,17 @@ class MLPTrainer:
             self.timer.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}   valid auc: {:10.6f}".format(epoch, np.mean(train_losses),
                                                                                        np.mean(valid_losses), valid_auc))
 
+            checkpoint = {'model': self.model, 'args': self.args}
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.mlp_model_name, self.args.max_depth,
+                                                       self.args.num_trees_for_embedding)
+
+            if valid_auc > max_auc:
+                max_auc = valid_auc
+                torch.save(checkpoint, model_name)
+
+            if early_stopper.record(valid_auc):
+                self.model = torch.load(model_name)['model']
+                return
 
     def valid_model(self, valid):
         valid_losses = []
@@ -103,7 +122,8 @@ class MLPTrainer:
         if self.mode is 'both':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
             emb = emb / norm
-            emb = emb.reshape(-1, self.args.embedding_size * self.args.num_trees_for_embedding)
+            # if not self.args.all_trees:
+            emb = emb.reshape(-1, self.embedding_size_to_mlp)
             # emb = np.mean(emb, axis=1)
             X = np.concatenate([X, emb], axis=1)
         elif self.mode is 'raw_only':
@@ -111,7 +131,10 @@ class MLPTrainer:
         elif self.mode is 'emb_only':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
             emb = emb / norm
-            X = emb.reshape(-1, self.args.embedding_size * self.args.num_trees_for_embedding)
+            # if not self.args.all_trees:
+            X = emb.reshape(-1, self.embedding_size_to_mlp)
+            # else:
+            #     X = emb
             # X = np.mean(emb, axis=1)
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")

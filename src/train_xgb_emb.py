@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import optim
 
+from src.earlystopper import EarlyStopper
 from src.Timer import Timer
 from src.embedding_net import XGBEmbedding
 from src.xgbembeddingevaluator import XGBEmbeddingEvaluator
@@ -19,6 +20,9 @@ class XGBEmbeddingTrainer:
         # ADAM opts
         opt = optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
 
+        early_stopper = EarlyStopper(3, 'moving')
+        min_loss = 1e30
+
         ################ Training epoch
         self.model.cuda()
         for epoch in range(1, self.args.num_epoch + 1):
@@ -26,12 +30,19 @@ class XGBEmbeddingTrainer:
             train_losses = self.train_model(opt, train)
 
             valid_losses = self.valid_model(valid)
+            valid_mean_loss = np.mean(valid_losses)
             self.timer.toc("epoch {:4d} - train loss: {:10.6f}   valid loss: {:10.6f}".format(epoch, np.mean(train_losses),
-                                                                                       np.mean(valid_losses)))
-
+                                                                                              valid_mean_loss))
             checkpoint = {'model': self.model, 'args': self.args}
-            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth, self.args.num_trees_for_embedding)
-            torch.save(checkpoint, model_name)
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.model_name, self.args.max_depth,
+                                                       self.args.num_trees_for_embedding)
+
+            if valid_mean_loss < min_loss:
+                min_loss = valid_mean_loss
+                torch.save(checkpoint, model_name)
+            if early_stopper.record(valid_mean_loss):
+                self.model = torch.load(model_name)['model']
+                return
 
     def valid_model(self, valid):
         valid_losses = []
@@ -74,7 +85,7 @@ class XGBEmbeddingTrainer:
             self.valid_model(valid)
 
     def get_embedding(self, loaders, trees):
-        XGBEmbeddingEvaluator(self.model.get_weights(), trees, print_eval=self.args.print_eval)
+        XGBEmbeddingEvaluator(self.model.get_weights().detach().cpu().numpy(), trees, print_eval=self.args.print_eval)
         emb = []
         for loader in loaders:
             emb.append(self.inference(loader))
