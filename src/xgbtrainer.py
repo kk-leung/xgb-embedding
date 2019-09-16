@@ -6,12 +6,12 @@ import xgboost as xgb
 from torch.utils.data import DataLoader, Dataset
 
 from src.Timer import Timer
-from src.splitter import Splitter
+from src.santandersplitter import SantanderSplitter
 from src.xgb_dump_parser import DecisionTree
 
 
 class XGBTrainer:
-    def __init__(self, splitter: Splitter, args, timer: Timer = None):
+    def __init__(self, splitter, args, timer: Timer = None):
 
         # Load and split
         self.timer = Timer() if timer is None else timer
@@ -50,6 +50,7 @@ class XGBTrainer:
 
         # train
 
+        booster_file_name = "{}_{}_{}".format(args.booster_file, args.max_depth, args.num_round)
         if args.load is False:
             if args.xgb_silent:
                 booster = xgb.train(param, dtrain, num_boost_round=args.num_round)
@@ -57,10 +58,10 @@ class XGBTrainer:
                 booster = xgb.train(param, dtrain, evals=watchlist, num_boost_round=args.num_round)
 
 
-            booster.save_model(args.booster_file)
+            booster.save_model(booster_file_name)
         else:
             booster = xgb.Booster()
-            booster.load_model(args.booster_file)
+            booster.load_model(booster_file_name)
             booster.set_param(param)
         print(booster.eval_set(watchlist))
         dump = booster.get_dump(with_stats=True)
@@ -71,17 +72,17 @@ class XGBTrainer:
         self.num_trees = len(self.trees)
         self.timer.toc("train done. Max length = " + str(self.max_length))
 
-        # predict leaf
-        train_pred = booster.predict(dtrain, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        valid_pred = booster.predict(dvalid, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        test_pred = booster.predict(dtest, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        self.timer.toc("predict done")
-        booster = None
-
-        self.train_leaf = self.parse_predict_leaf(train_pred)
-        self.valid_leaf = self.parse_predict_leaf(valid_pred)
-        self.test_leaf = self.parse_predict_leaf(test_pred)
-        self.timer.toc("index done")
+        # # predict leaf
+        # train_pred = booster.predict(dtrain, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        # valid_pred = booster.predict(dvalid, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        # test_pred = booster.predict(dtest, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        # self.timer.toc("predict done")
+        # booster = None
+        #
+        # self.train_leaf = self.parse_predict_leaf(train_pred)
+        # self.valid_leaf = self.parse_predict_leaf(valid_pred)
+        # self.test_leaf = self.parse_predict_leaf(test_pred)
+        # self.timer.toc("index done")
 
     def parse_predict_leaf(self, pred_leaves):
         def func(leaf_index, leaf):
@@ -115,6 +116,13 @@ class XGBTrainer:
 
     def get_leaf_version(self):
         return self.train_leaf, self.valid_leaf, self.test_leaf
+
+    def predict(self, Xtest):
+        dtest = xgb.DMatrix(Xtest)
+        booster_file_name = "{}_{}_{}".format(self.args.booster_file, self.args.max_depth, self.args.num_round)
+        booster = xgb.Booster()
+        booster.load_model(booster_file_name)
+        return booster.predict(dtest)
 
 
 class XGBLeafDataset(Dataset):

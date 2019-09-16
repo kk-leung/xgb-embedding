@@ -4,7 +4,9 @@ import torch
 
 # %% Args setup
 from src.Timer import Timer
-from src.splitter import Splitter
+from src.ieee_preprocess import IEEESplitter
+from src.santandersplitter import SantanderSplitter
+from src.train_mlp import MLPTrainer
 from src.train_xgb_emb import XGBEmbeddingTrainer
 from src.train_xgb_svd import XgbSvdTrainer
 from src.xgbtrainer import XGBTrainer
@@ -15,17 +17,17 @@ parser.add_argument('--load', type=bool, default=False)
 parser.add_argument('--random_state', type=int, default=0)
 parser.add_argument('--print_eval', type=bool, default=True)
 
-parser.add_argument('--model_name', type=str, default='xgb-emb')
-parser.add_argument('--mlp_model_name', type=str, default='mlp')
-parser.add_argument('--booster_file', type=str, default='xgb-booster')
+parser.add_argument('--model_name', type=str, default='ieee-xgb-emb')
+parser.add_argument('--mlp_model_name', type=str, default='ieee-mlp')
+parser.add_argument('--booster_file', type=str, default='ieee-xgb-booster')
 parser.add_argument('--svd_name', type=str, default='svd')
 
-parser.add_argument('--eta', type=float, default=0.1)
-parser.add_argument('--max_depth', type=int, default=7)
-parser.add_argument('--num_round', type=int, default=100)
-parser.add_argument('--xgb_silent', type=bool, default=True)
+parser.add_argument('--eta', type=float, default=0.05)
+parser.add_argument('--max_depth', type=int, default=9)
+parser.add_argument('--num_round', type=int, default=10000)
+parser.add_argument('--xgb_silent', type=bool, default=False)
 
-parser.add_argument('--num_trees_for_embedding', type=int, default=100)
+parser.add_argument('--num_trees_for_embedding', type=int, default=1000)
 parser.add_argument('--num_epoch', type=int, default=100)
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--embedding_size', type=int, default=20)
@@ -35,7 +37,7 @@ parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--all_trees', type=bool, default=True)
 
 parser.add_argument('--mlp_num_epoch', type=int, default=100)
-parser.add_argument('--mlp_lr', type=float, default=1e-6, help='learning rate')
+parser.add_argument('--mlp_lr', type=float, default=3e-6, help='learning rate')
 parser.add_argument('--mlp_batch_size', type=int, default=64)
 parser.add_argument('--mlp_dropout', type=float, default=0.5)
 parser.add_argument('--mlp_weight_decay', type=float, default=0)
@@ -52,13 +54,17 @@ timer = Timer()
 
 def main():
     # split
-    splitter = Splitter("../data/santander/train.csv", args)
+    splitter = IEEESplitter(args)
+    # splitter = SantanderSplitter("../data/santander/train.csv", args)
 
     # train xgb
     trainer = XGBTrainer(splitter, args, timer)
 
+    pred = trainer.predict(splitter.test[0])
+    splitter.export(pred, "xgb_pred.csv")
+
     # train embedding
-    embs = train_xgb_emb(trainer)
+    # embs = train_xgb_emb(trainer)
     # embs = train_xgb_svd_emb(trainer)
 
     # MLP

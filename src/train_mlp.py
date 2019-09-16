@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from src.earlystopper import EarlyStopper
 from src.Timer import Timer
 from src.mlp_net import MLP
-from src.splitter import Splitter
+from src.santandersplitter import SantanderSplitter
 
 
 

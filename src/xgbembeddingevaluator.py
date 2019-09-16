@@ -56,7 +56,7 @@ class XGBEmbeddingEvaluator:
             comparator_string = "<" if node.yes_node_id == child_node_index else ">"
             string = "{:5}{:2}{:6.2f}, ".format(node.feature_name, comparator_string,
                                                           node.decision_value) + string
-        return "Tree {:5}, ".format(tree_index + 1) + ", " + string
+        return "Tree {:5}, ".format(tree_index + 1) + string
 
     def eval_nodes(self, top_k=5, normalize=True):
         tree_index = np.random.randint(len(self.trees))
@@ -69,9 +69,13 @@ class XGBEmbeddingEvaluator:
         weight = all_weights[tree_index, node_index, :].unsqueeze(1)
         values = torch.matmul(all_weights, weight).detach().cpu().numpy()
         indexes = np.unravel_index(np.argsort(values, axis=None), dims=values.shape)
-        indexes = list(zip(indexes[0][-top_k:][::-1], indexes[1][-top_k:][::-1]))
+        indexes = list(zip(indexes[0][-top_k:][::-1], indexes[1][::-1]))
         print("Chosen Path:", self._print_path(tree_index, node_index))
         print("")
-        for i, index in enumerate(indexes):
-            print("{:11}:".format(i + 1), self._print_path(index[0], index[1]))
+        i = 0
+        while i < top_k:
+            index = indexes[i]
+            if index[1] < len(self.trees[index[0]].leaf_nodes):
+                print("{:11}:".format(i + 1), self._print_path(index[0], index[1]))
+                i += 1
         print("")
