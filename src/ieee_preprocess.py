@@ -13,7 +13,8 @@ class IEEESplitter:
                                                                      "DeviceInfo", "id_33_1", "id_31_1", "id_30_1"]
         self.trans_cat_col = ["M" + str(i) for i in range(1, 10)] + ["card" + str(i) for i in range(1, 7)] + \
                              ["ProductCD", "addr1", "addr2", "P_emaildomain", "R_emaildomain"]
-        self.try_list = ["id_" + str(i) for i in [13, 17, 18, 19, 20, 21, 22, 24, 25, 26]]
+        self.try_list = ["id_" + str(i) for i in [13, 17]]
+        # self.try_list = ["id_" + str(i) for i in [13, 17, 18, 19, 20, 21, 22, 24, 25, 26]]
 
         self.id_onehot_encoder = OneHot(0.01)
         self.trans_onehot_encoder = OneHot(0.0025)
@@ -50,10 +51,10 @@ class IEEESplitter:
         self.global_count(df_id, df_trans)
         self.timer.toc("global_count done")
 
-        df_trans.fillna(0, inplace=True)
-        dt_trans.fillna(0, inplace=True)
-        df_id_raw.fillna(0, inplace=True)
-        dt_id.fillna(0, inplace=True)
+        # df_trans.fillna(0, inplace=True)
+        # dt_trans.fillna(0, inplace=True)
+        # df_id_raw.fillna(0, inplace=True)
+        # dt_id.fillna(0, inplace=True)
 
         df_trans, ytrain = self.split_x_y(df_trans)
         dv_trans, yvalid = self.split_x_y(dv_trans)
@@ -65,6 +66,13 @@ class IEEESplitter:
         self.timer.toc("get valid derived done")
         dt_global = self.get_derived(dt_id)
         self.timer.toc("get test derived done")
+
+        df_id.fillna(0, inplace=True)
+        dv_id.fillna(0, inplace=True)
+        dt_id.fillna(0, inplace=True)
+        df_trans.fillna(0, inplace=True)
+        dv_trans.fillna(0, inplace=True)
+        dt_trans.fillna(0, inplace=True)
 
         self.init_onehot(df_id, df_trans)
         self.init_scaler(df_id.drop(self.id_cat_col, axis=1), df_trans.drop(self.trans_cat_col, axis=1))
@@ -83,13 +91,18 @@ class IEEESplitter:
 
     def transform(self, df_id, df_trans, df_global):
         id_num, id_cat = self.id_onehot_encoder.transform(df_id)
-        id_num = self.id_scaler.transform(id_num.drop("TransactionID", axis=1))
+        id_num = self._scaler_transform(self.id_scaler, id_num.drop("TransactionID", axis=1))
+        # id_num = self.id_scaler.transform(id_num.drop("TransactionID", axis=1))
         id = pd.concat([df_global, id_num, id_cat], axis=1)
 
         trans_num, trans_cat = self.trans_onehot_encoder.transform(df_trans)
-        trans_num = self.trans_scaler.transform(trans_num.drop("TransactionID", axis=1))
+        trans_num = self._scaler_transform(self.trans_scaler, trans_num.drop("TransactionID", axis=1))
+        # trans_num = self.trans_scaler.transform(trans_num.drop("TransactionID", axis=1))
         trans = pd.concat([df_trans[['TransactionID']], trans_num, trans_cat], axis=1)
         return trans.merge(id, how='left', on='TransactionID').drop("TransactionID", axis=1)
+
+    def _scaler_transform(self, scaler, df):
+        return pd.DataFrame(scaler.transform(df.values), index=df.index, columns=df.columns)
 
     def init_onehot(self, df_id, df_trans):
         self.id_onehot_encoder.fit(df_id, self.id_cat_col)
