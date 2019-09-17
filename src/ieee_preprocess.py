@@ -7,7 +7,11 @@ from src.Timer import Timer
 
 
 class IEEESplitter:
-    def __init__(self, args):
+    def __init__(self, args, load_raw=False):
+
+        self.train_parsed_file = '../data/ieee/train.csv'
+        self.valid_parsed_file = '../data/ieee/valid.csv'
+        self.test_parsed_file = '../data/ieee/test.csv'
         self.args = args
         self.id_cat_col = ["id_" + str(i) for i in range(12, 39)] + ["DeviceType",
                                                                      "DeviceInfo", "id_33_1", "id_31_1", "id_30_1"]
@@ -25,71 +29,98 @@ class IEEESplitter:
         self.global_df = []
 
         self.timer = Timer()
-        df_trans = pd.read_csv("../data/ieee/train_transaction.csv")
-        df_id_raw = pd.read_csv("../data/ieee/train_identity.csv")
-        dt_trans = pd.read_csv("../data/ieee/test_transaction.csv")
-        dt_id = pd.read_csv("../data/ieee/test_identity.csv")
-        self.timer.toc("read done")
 
-        self.test_id = dt_trans['TransactionID']
+        if load_raw:
+            df_trans = pd.read_csv("../data/ieee/train_transaction.csv")
+            df_id_raw = pd.read_csv("../data/ieee/train_identity.csv")
+            dt_trans = pd.read_csv("../data/ieee/test_transaction.csv")
+            dt_id = pd.read_csv("../data/ieee/test_identity.csv")
+            self.timer.toc("read done")
+
+            self.test_id = dt_trans['TransactionID']
 
 
-        df_trans, dv_trans = train_test_split(df_trans, random_state=args.random_state, train_size=0.8,
-                                              test_size=0.2)
-        train_ids = df_trans[['TransactionID']]
-        df_id = train_ids.merge(df_id_raw, how='left', on='TransactionID')
+            df_trans, dv_trans = train_test_split(df_trans, random_state=args.random_state, train_size=0.8,
+                                                  test_size=0.2)
+            train_ids = df_trans[['TransactionID']]
+            df_id = train_ids.merge(df_id_raw, how='left', on='TransactionID')
 
-        valid_ids = dv_trans[['TransactionID']]
-        dv_id = valid_ids.merge(df_id_raw, how='left', on='TransactionID')
-        self.timer.toc("split done")
+            valid_ids = dv_trans[['TransactionID']]
+            dv_id = valid_ids.merge(df_id_raw, how='left', on='TransactionID')
+            self.timer.toc("split done")
 
-        self.feature_engineering_id(df_id)
-        self.feature_engineering_id(dv_id)
-        self.feature_engineering_id(dt_id)
-        self.timer.toc("process id done")
+            self.feature_engineering_id(df_id)
+            self.feature_engineering_id(dv_id)
+            self.feature_engineering_id(dt_id)
+            self.timer.toc("process id done")
 
-        self.global_count(df_id, df_trans)
-        self.timer.toc("global_count done")
+            self.global_count(df_id, df_trans)
+            self.timer.toc("global_count done")
 
-        # df_trans.fillna(0, inplace=True)
-        # dt_trans.fillna(0, inplace=True)
-        # df_id_raw.fillna(0, inplace=True)
-        # dt_id.fillna(0, inplace=True)
+            # df_trans.fillna(0, inplace=True)
+            # dt_trans.fillna(0, inplace=True)
+            # df_id_raw.fillna(0, inplace=True)
+            # dt_id.fillna(0, inplace=True)
 
-        df_trans, ytrain = self.split_x_y(df_trans)
-        dv_trans, yvalid = self.split_x_y(dv_trans)
-        dt_trans, ytest = self.split_x_y(dt_trans)
+            df_trans, ytrain = self.split_x_y(df_trans)
+            dv_trans, yvalid = self.split_x_y(dv_trans)
+            dt_trans, ytest = self.split_x_y(dt_trans)
 
-        df_global = self.get_derived(df_id)
-        self.timer.toc("get train derived done")
-        dv_global = self.get_derived(dv_id)
-        self.timer.toc("get valid derived done")
-        dt_global = self.get_derived(dt_id)
-        self.timer.toc("get test derived done")
+            df_global = self.get_derived(df_id)
+            self.timer.toc("get train derived done")
+            dv_global = self.get_derived(dv_id)
+            self.timer.toc("get valid derived done")
+            dt_global = self.get_derived(dt_id)
+            self.timer.toc("get test derived done")
 
-        df_id.fillna(0, inplace=True)
-        dv_id.fillna(0, inplace=True)
-        dt_id.fillna(0, inplace=True)
-        df_trans.fillna(0, inplace=True)
-        dv_trans.fillna(0, inplace=True)
-        dt_trans.fillna(0, inplace=True)
+            # df_id.fillna(0, inplace=True)
+            # dv_id.fillna(0, inplace=True)
+            # dt_id.fillna(0, inplace=True)
+            # df_trans.fillna(0, inplace=True)
+            # dv_trans.fillna(0, inplace=True)
+            # dt_trans.fillna(0, inplace=True)
 
-        self.init_onehot(df_id, df_trans)
-        self.init_scaler(df_id.drop(self.id_cat_col, axis=1), df_trans.drop(self.trans_cat_col, axis=1))
+            self.init_onehot(df_id, df_trans)
+            self.init_scaler(df_id.drop(self.id_cat_col, axis=1), df_trans.drop(self.trans_cat_col, axis=1))
 
-        Xtrain = self.transform(df_id, df_trans, df_global)
-        self.timer.toc("transform train done")
-        Xvalid = self.transform(dv_id, dv_trans, dv_global)
-        self.timer.toc("transform valid done")
-        Xtest = self.transform(dt_id, dt_trans, dt_global)
-        self.timer.toc("transform test done")
+            Xtrain = self.transform(df_id, df_trans, df_global)
+            self.timer.toc("transform train done")
+            Xvalid = self.transform(dv_id, dv_trans, dv_global)
+            self.timer.toc("transform valid done")
+            Xtest = self.transform(dt_id, dt_trans, dt_global, drop_trans_id=False)
+            self.timer.toc("transform test done")
 
-        self.train = Xtrain, ytrain.values
-        self.valid = Xvalid, yvalid.values
-        self.test = Xtest, ytest.values
-        self.num_input = Xtrain.shape[1]
+            # pd.concat([Xtrain, ytrain], axis=1).to_csv(self.train_parsed_file, index=False)
+            pd.concat([Xvalid, yvalid], axis=1).to_csv(self.valid_parsed_file, index=False)
+            # Xtest.to_csv(self.test_parsed_file, index=False)
 
-    def transform(self, df_id, df_trans, df_global):
+            raise Exception("STOP HERE!")
+        else:
+            self.train = self.load(self.train_parsed_file)
+            self.valid = self.load(self.valid_parsed_file)
+            self.test = self.load(self.test_parsed_file, test=True)
+            self.num_input = self.train[0].shape[1]
+
+
+        #     self.train = Xtrain, ytrain.values
+        # self.valid = Xvalid, yvalid.values
+        # self.test = Xtest, ytest.values
+        # self.num_input = Xtrain.shape[1]
+
+    def load(self, file, test=False):
+        df = pd.read_csv(file)
+        if not test:
+            X = df.drop('isFraud', axis=1)
+            y = df['isFraud']
+        else:
+            X = df.drop('TransactionID', axis=1)
+            y = pd.Series(np.zeros(len(df)))
+            y.iloc[:10] = 1
+            self.test_id = df['TransactionID']
+        return X, y.values
+
+
+    def transform(self, df_id, df_trans, df_global, drop_trans_id=True):
         id_num, id_cat = self.id_onehot_encoder.transform(df_id)
         id_num = self._scaler_transform(self.id_scaler, id_num.drop("TransactionID", axis=1))
         # id_num = self.id_scaler.transform(id_num.drop("TransactionID", axis=1))
@@ -99,7 +130,10 @@ class IEEESplitter:
         trans_num = self._scaler_transform(self.trans_scaler, trans_num.drop("TransactionID", axis=1))
         # trans_num = self.trans_scaler.transform(trans_num.drop("TransactionID", axis=1))
         trans = pd.concat([df_trans[['TransactionID']], trans_num, trans_cat], axis=1)
-        return trans.merge(id, how='left', on='TransactionID').drop("TransactionID", axis=1)
+        if drop_trans_id:
+            return trans.merge(id, how='left', on='TransactionID').drop("TransactionID", axis=1)
+        else:
+            return trans.merge(id, how='left', on='TransactionID')
 
     def _scaler_transform(self, scaler, df):
         return pd.DataFrame(scaler.transform(df.values), index=df.index, columns=df.columns)
