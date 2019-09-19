@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class EarlyStopper:
     def __init__(self, stopping_round, stopping_type, min_stopping_round=0, reverse=False):
         self.stopping_round = stopping_round

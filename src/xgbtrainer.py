@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 from src.Timer import Timer
 from src.santandersplitter import SantanderSplitter
 from src.xgb_dump_parser import DecisionTree
+from scipy.sparse import csr_matrix
 
 
 class XGBTrainer:
@@ -51,7 +52,7 @@ class XGBTrainer:
         # train
 
         booster_file_name = "{}_{}_{}".format(args.booster_file, args.max_depth, args.num_round)
-        if args.load is False:
+        if args.load_xgb is False:
             if args.xgb_silent:
                 booster = xgb.train(param, dtrain, num_boost_round=args.num_round)
             else:
@@ -72,17 +73,17 @@ class XGBTrainer:
         self.num_trees = len(self.trees)
         self.timer.toc("train done. Max length = " + str(self.max_length))
 
-        # # predict leaf
-        # train_pred = booster.predict(dtrain, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        # valid_pred = booster.predict(dvalid, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        # test_pred = booster.predict(dtest, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
-        # self.timer.toc("predict done")
-        # booster = None
-        #
-        # self.train_leaf = self.parse_predict_leaf(train_pred)
-        # self.valid_leaf = self.parse_predict_leaf(valid_pred)
-        # self.test_leaf = self.parse_predict_leaf(test_pred)
-        # self.timer.toc("index done")
+        # predict leaf
+        train_pred = booster.predict(dtrain, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        valid_pred = booster.predict(dvalid, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        test_pred = booster.predict(dtest, pred_leaf=True, ntree_limit=args.num_trees_for_embedding)
+        self.timer.toc("predict done")
+        booster = None
+
+        self.train_leaf = self.parse_predict_leaf(train_pred)
+        self.valid_leaf = self.parse_predict_leaf(valid_pred)
+        self.test_leaf = self.parse_predict_leaf(test_pred)
+        self.timer.toc("index done")
 
     def parse_predict_leaf(self, pred_leaves):
         def func(leaf_index, leaf):
@@ -105,8 +106,17 @@ class XGBTrainer:
         return train_loader, valid_loader, test_loader
 
     def _get_one_hot_version(self, leaves):
-        transpose = np.transpose(leaves)
-        return np.concatenate([np.eye(self.num_nodes[i])[tree] for i, tree in enumerate(transpose)], axis=1)
+        arange = np.arange(self.num_trees)
+
+        # shift index
+        shifted = leaves + (arange * self.num_nodes)[None, :]
+        rows = np.arange(0, len(leaves))[:, None].repeat(self.num_trees)
+        data = np.ones(leaves.shape[0] * leaves.shape[1])
+        shape = (leaves.shape[0], self.num_trees * sum(self.num_nodes))
+        return csr_matrix((data, (rows, shifted.reshape(-1))), shape=shape)
+
+        # transpose = np.transpose(leaves)
+        # return np.concatenate([np.eye(self.num_nodes[i])[tree] for i, tree in enumerate(transpose)], axis=1)
 
     def get_one_hot_version(self):
         train_one_hot = self._get_one_hot_version(self.train_leaf)
@@ -123,6 +133,21 @@ class XGBTrainer:
         booster = xgb.Booster()
         booster.load_model(booster_file_name)
         return booster.predict(dtest)
+
+    def _check_leaf_to_index(self):
+        li = []
+        for tree in self.trees:
+            s = set()
+            dic = tree.leaf_to_index
+            for k, v in dic.items():
+                s.add(k-v)
+            if len(s) != 1:
+                return None
+            else:
+                li.append(list(s)[0])
+        return li
+
+
 
 
 class XGBLeafDataset(Dataset):

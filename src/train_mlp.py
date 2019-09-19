@@ -31,7 +31,12 @@ class MLPTrainer:
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")
 
-        self.model = MLP(args, num_features)
+        if args.load_mlp:
+            model_name = "{:s}_{:d}_{:d}.chkpt".format(self.args.mlp_model_name, self.args.max_depth,
+                                                       self.args.num_trees_for_embedding)
+            self.model = torch.load(model_name)['model']
+        else:
+            self.model = MLP(args, num_features)
         self.mode = mode
         self.loss = torch.nn.BCEWithLogitsLoss(reduction='mean')
         total_params = sum(x.data.nelement() for x in self.model.parameters())
@@ -105,9 +110,10 @@ class MLPTrainer:
         results = []
         ground_truths = []
         for batch, x in enumerate(test):
-            results.append(torch.sigmoid(self.model(x[0].cuda())))
-            ground_truths.append(x[1])
-        return torch.cat(results, dim=0).detach().cpu().numpy(), torch.cat(ground_truths, dim=0).detach().cpu().numpy()
+            results.append(torch.sigmoid(self.model(x[0].cuda())).detach().cpu().numpy())
+            ground_truths.append(x[1].detach().cpu().numpy())
+        return np.concatenate(results, axis=0), np.concatenate(ground_truths, axis=0)
+        # return torch.cat(results, dim=0).detach().cpu().numpy(), torch.cat(ground_truths, dim=0).detach().cpu().numpy()
 
     @staticmethod
     def evaluate(pred, ground_truth, print_result=True):
@@ -121,7 +127,7 @@ class MLPTrainer:
         X, y = raw
         if self.mode is 'both':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
-            emb = emb / norm
+            emb = emb / (norm + 1e-8)
             # if not self.args.all_trees:
             emb = emb.reshape(-1, self.embedding_size_to_mlp)
             # emb = np.mean(emb, axis=1)
@@ -130,7 +136,7 @@ class MLPTrainer:
             pass
         elif self.mode is 'emb_only':
             norm = np.linalg.norm(emb, axis=-1, keepdims=True)
-            emb = emb / norm
+            emb = emb / (norm + 1e-8)
             # if not self.args.all_trees:
             X = emb.reshape(-1, self.embedding_size_to_mlp)
             # else:
@@ -138,23 +144,31 @@ class MLPTrainer:
             # X = np.mean(emb, axis=1)
         else:
             raise Exception("unidentified mode. possible={'raw_only', 'emb_only', 'both'}")
-        dataset = MLPDataset(X, y)
+        dataset = MLPDataset(np.nan_to_num(X, copy=False), y)
         return DataLoader(dataset, batch_size=self.args.mlp_batch_size, shuffle=shuffle)
 
     def run(self, raws, embs):
         train_loader = self.get_loader(raws[0], embs[0])
+        self.timer.toc("train loader done")
         valid_loader = self.get_loader(raws[1], embs[1])
+        self.timer.toc("valid loader done")
         test_loader = self.get_loader(raws[2], embs[2], shuffle=False)
-        self.trainIters(train_loader, valid_loader)
+        self.timer.toc("test loader done")
+        if not self.args.load_mlp:
+            self.trainIters(train_loader, valid_loader)
         train_pred, train_true = self.inference(train_loader)
+        self.timer.toc("train inference done")
         valid_pred, valid_true = self.inference(valid_loader)
+        self.timer.toc("valid inference done")
         test_pred, test_true = self.inference(test_loader)
+        self.timer.toc("test inference done")
         print('train')
         self.evaluate(train_pred, train_true)
         print('valid')
         self.evaluate(valid_pred, valid_true)
         print('test')
         self.evaluate(test_pred, test_true)
+        return test_pred
 
 
 class MLPDataset(Dataset):

@@ -4,19 +4,20 @@ import numpy as np
 from sklearn.decomposition import TruncatedSVD
 
 from src.Timer import Timer
+from src.xgbembeddingevaluator import XGBEmbeddingEvaluator
 
 
 class XgbSvdTrainer:
     def __init__(self, args, num_nodes, svd_name='xgb-svd', timer: Timer = None):
         self.timer = Timer() if timer is None else timer
+        self.args = args
         self.num_nodes = num_nodes
-        self.max_depth = np.ceil(np.log(max(num_nodes)))
+        self.max_depth = np.ceil(np.log(max(num_nodes))).astype(int)
         self.svd_name = svd_name
         self.cumsum = np.cumsum([0] + self.num_nodes)
         self.embedding_size = args.embedding_size
         self.embeddings = None
         if args.load:
-
             model_name = "{:s}_{:d}_{:d}".format(svd_name, self.max_depth, len(num_nodes))
             with open(model_name, "rb") as f:
                 self.svds = pickle.load(f)
@@ -25,12 +26,13 @@ class XgbSvdTrainer:
             self.svds = TruncatedSVD(n_components=self.embedding_size)
 
     def fit_svd(self, x, save=True):
-        self.svds.fit(x)
-        model_name = "{:s}_{:d}_{:d}".format(self.svd_name, self.max_depth, len(self.num_nodes))
-        self._get_weights()
-        if save:
-            with open(model_name, "wb") as f:
-                pickle.dump(self.svds, f)
+        if not self.args.load:
+            self.svds.fit(x)
+            model_name = "{:s}_{:d}_{:d}".format(self.svd_name, self.max_depth, len(self.num_nodes))
+            self._get_weights()
+            if save:
+                with open(model_name, "wb") as f:
+                    pickle.dump(self.svds, f)
 
     def _get_weights(self):
         max_length = max(self.num_nodes)
@@ -45,6 +47,6 @@ class XgbSvdTrainer:
         # (bs, n_trees, e)
         return np.stack([self.embeddings[i][x[:, i]] for i in range(len(self.embeddings))], axis=1)
 
-    # def get_embedding(self, x_list, trees):
-    #     XGBEmbeddingEvaluator(self.embeddings, trees, print_eval=self.args.print_eval)
-    #     return [self.inference(x) for x in x_list]
+    def get_embedding(self, x_list, trees, args):
+        # XGBEmbeddingEvaluator(self.embeddings, trees, print_eval=args.print_eval)
+        return [self.inference(x) for x in x_list]
